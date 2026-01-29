@@ -176,6 +176,11 @@ export interface Post {
   author?: User;
   conversation?: string;
   created_at: number;
+  notification?: {
+    title?: string;
+    body?: string;
+  };
+  attachments?: Attachment[];
 }
 
 export interface PostsResponse {
@@ -184,4 +189,23 @@ export interface PostsResponse {
 
 export interface PostResponse {
   posts: Post[];
+}
+
+// Comment
+export interface Comment {
+  id: string;
+  body?: string;
+  author?: User;
+  conversation?: string;
+  created_at: number;
+  mentions?: User[];
+  attachments?: Attachment[];
+  task?: {
+    id: string;
+    completed?: boolean;
+  };
+}
+
+export interface CommentsResponse {
+  comments: Comment[];
 }

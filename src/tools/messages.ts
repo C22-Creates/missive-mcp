@@ -5,7 +5,12 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as z from 'zod';
 import { getClient } from '../client.js';
-import type { MessagesResponse, MessageResponse } from '../types/missive.js';
+import type {
+  MessagesResponse,
+  MessageResponse,
+  PostsResponse,
+  CommentsResponse,
+} from '../types/missive.js';
 
 /**
  * Strip HTML tags and normalize whitespace
@@ -175,6 +180,148 @@ Use strip_html=true (default) to convert HTML to plain text.`,
           content_type: a.content_type,
         })),
         conversation: message.conversation,
+      };
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  // list_posts
+  server.registerTool(
+    'list_posts',
+    {
+      title: 'List Posts',
+      description: `Lists posts in a conversation. Posts are internal notes and state changes (close, assign, label) made by team members.
+
+IMPORTANT: Always check posts in addition to messages - team comments and activity won't appear in messages.
+
+Posts include:
+- Internal notes/comments from team members
+- State change notifications (closed, assigned, labeled)
+- Integration notifications
+
+Returns posts ordered from newest to oldest.`,
+      inputSchema: {
+        conversation_id: z
+          .string()
+          .uuid()
+          .describe('The conversation ID to get posts from'),
+        limit: z
+          .number()
+          .min(1)
+          .max(50)
+          .default(10)
+          .describe('Maximum posts to return'),
+        until: z
+          .string()
+          .optional()
+          .describe('Cursor for pagination (post created_at timestamp)'),
+      },
+    },
+    async ({ conversation_id, limit, until }) => {
+      const data = await getClient().get<PostsResponse>(
+        `/conversations/${conversation_id}/posts`,
+        { limit, until }
+      );
+
+      const result = {
+        posts: data.posts.map((p) => ({
+          id: p.id,
+          text: p.text,
+          author: p.author,
+          created_at: p.created_at,
+          notification: p.notification,
+          attachments: p.attachments?.map((a) => ({
+            id: a.id,
+            filename: a.filename,
+            size: a.size,
+            content_type: a.content_type,
+          })),
+        })),
+        has_more: data.posts.length === limit,
+        next_cursor:
+          data.posts.length > 0
+            ? String(data.posts[data.posts.length - 1].created_at)
+            : undefined,
+      };
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  // list_comments
+  server.registerTool(
+    'list_comments',
+    {
+      title: 'List Comments',
+      description: `Lists comments in a conversation. Comments are team discussions that appear in the sidebar.
+
+IMPORTANT: Always check comments in addition to messages - team discussions won't appear in messages.
+
+Comments may include:
+- Team member discussions
+- @mentions of other users
+- Attached files
+- Associated tasks
+
+Returns comments ordered from newest to oldest.`,
+      inputSchema: {
+        conversation_id: z
+          .string()
+          .uuid()
+          .describe('The conversation ID to get comments from'),
+        limit: z
+          .number()
+          .min(1)
+          .max(50)
+          .default(10)
+          .describe('Maximum comments to return'),
+        until: z
+          .string()
+          .optional()
+          .describe('Cursor for pagination (comment created_at timestamp)'),
+      },
+    },
+    async ({ conversation_id, limit, until }) => {
+      const data = await getClient().get<CommentsResponse>(
+        `/conversations/${conversation_id}/comments`,
+        { limit, until }
+      );
+
+      const result = {
+        comments: data.comments.map((c) => ({
+          id: c.id,
+          body: c.body,
+          author: c.author,
+          created_at: c.created_at,
+          mentions: c.mentions,
+          task: c.task,
+          attachments: c.attachments?.map((a) => ({
+            id: a.id,
+            filename: a.filename,
+            size: a.size,
+            content_type: a.content_type,
+          })),
+        })),
+        has_more: data.comments.length === limit,
+        next_cursor:
+          data.comments.length > 0
+            ? String(data.comments[data.comments.length - 1].created_at)
+            : undefined,
       };
 
       return {

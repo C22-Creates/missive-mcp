@@ -73,6 +73,8 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
 |------|-------------|
 | `list_messages` | List messages in a conversation |
 | `get_message` | Get full message content (with body truncation options) |
+| `list_posts` | List posts (internal notes and state changes) in a conversation |
+| `list_comments` | List comments (team discussions) in a conversation |
 
 ### Drafts
 
