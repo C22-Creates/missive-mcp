@@ -36,7 +36,7 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
 {
   "mcpServers": {
     "missive": {
-      "command": "node",
+      "command": "/path/to/node",
       "args": ["/path/to/missive-mcp/dist/index.js"],
       "env": {
         "MISSIVE_API_TOKEN": "your_api_token_here"
@@ -45,6 +45,8 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
   }
 }
 ```
+
+**Important:** Use the full path to `node` (run `which node` to find it). Claude Desktop has a restricted PATH and may not find node otherwise.
 
 ## Tools
 
