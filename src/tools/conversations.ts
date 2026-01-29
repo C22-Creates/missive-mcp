@@ -186,11 +186,24 @@ Note: email and domain are mutually exclusive.`,
         `/conversations/${conversation_id}`
       );
 
+      const conversation = data.conversations?.[0];
+      if (!conversation) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Conversation not found: ${conversation_id}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
       return {
         content: [
           {
             type: 'text' as const,
-            text: JSON.stringify(data.conversations[0], null, 2),
+            text: JSON.stringify(conversation, null, 2),
           },
         ],
       };

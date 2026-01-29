@@ -157,7 +157,19 @@ Use strip_html=true (default) to convert HTML to plain text.`,
         `/messages/${message_id}`
       );
 
-      const message = data.messages[0];
+      const message = data.messages?.[0];
+      if (!message) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Message not found: ${message_id}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
       const processedBody = processBody(
         message.body,
         body_format,

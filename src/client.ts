@@ -109,9 +109,17 @@ export class MissiveClient {
         try {
           const parsed = JSON.parse(errorBody);
           if (parsed.error) {
-            message = parsed.error;
+            // Error could be string or object
+            message = typeof parsed.error === 'string'
+              ? parsed.error
+              : JSON.stringify(parsed.error);
           } else if (parsed.message) {
-            message = parsed.message;
+            message = typeof parsed.message === 'string'
+              ? parsed.message
+              : JSON.stringify(parsed.message);
+          } else {
+            // Fallback to stringified response
+            message = JSON.stringify(parsed).substring(0, 500);
           }
         } catch {
           // Use text as-is if not JSON
@@ -123,7 +131,9 @@ export class MissiveClient {
     }
 
     // Redact any token that might be in error messages
-    message = message.replace(this.token, '[REDACTED]');
+    if (typeof message === 'string') {
+      message = message.replace(this.token, '[REDACTED]');
+    }
 
     switch (response.status) {
       case 401:

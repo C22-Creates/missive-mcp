@@ -91,11 +91,24 @@ export function registerContactTools(server: McpServer): void {
         `/contacts/${contact_id}`
       );
 
+      const contact = data.contacts?.[0];
+      if (!contact) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Contact not found: ${contact_id}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
       return {
         content: [
           {
             type: 'text' as const,
-            text: JSON.stringify(data.contacts[0], null, 2),
+            text: JSON.stringify(contact, null, 2),
           },
         ],
       };
