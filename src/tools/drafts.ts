@@ -7,7 +7,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as z from 'zod';
 import { getClient } from '../client.js';
 import { RateLimitError } from '../errors.js';
-import type { DraftsResponse, DraftResponse } from '../types/missive.js';
+import type { DraftsResponse, DraftResponse, MessageResponse } from '../types/missive.js';
 
 /**
  * Rate limiter for send operations
@@ -125,7 +125,7 @@ export function registerDraftTools(server: McpServer): void {
 
 The draft will be saved and can be viewed in Missive or sent later using send_message.
 
-For replies, provide the conversation ID. For new messages, omit it.`,
+For replies, provide the conversation ID and the from/to addresses. For new messages, omit the conversation ID and use any from/to addresses specified by the user.`,
       inputSchema: {
         // Recipients
         to_fields: z
@@ -162,19 +162,17 @@ For replies, provide the conversation ID. For new messages, omit it.`,
     },
     async (params) => {
       const data = await getClient().post<DraftResponse>('/drafts', {
-        drafts: [
-          {
-            to_fields: params.to_fields,
-            cc_fields: params.cc_fields,
-            bcc_fields: params.bcc_fields,
-            subject: params.subject,
-            body: params.body,
-            conversation: params.conversation,
-            from_field: params.from_field,
-            attachments: params.attachments,
-            send: false,
-          },
-        ],
+        drafts: {
+          to_fields: params.to_fields,
+          cc_fields: params.cc_fields,
+          bcc_fields: params.bcc_fields,
+          subject: params.subject,
+          body: params.body,
+          conversation: params.conversation,
+          from_field: params.from_field,
+          attachments: params.attachments,
+          send: false,
+        },
       });
 
       return {
@@ -185,6 +183,111 @@ For replies, provide the conversation ID. For new messages, omit it.`,
               {
                 draft: data.drafts[0],
                 message: 'Draft created successfully. Use send_message to send it.',
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    }
+  );
+
+  // draft_reply
+  server.registerTool(
+    'draft_reply',
+    {
+      title: 'Draft Reply',
+      description: `Creates a draft reply to an existing message. Automatically sets:
+- Subject: Adds "Re: " prefix to original subject
+- To: Uses the original sender's address
+- Conversation: Links to the original conversation
+
+Use reply_all=true to include original CC recipients.
+
+Only the body content is required. The draft can be reviewed in Missive or sent with send_message.`,
+      inputSchema: {
+        message_id: z
+          .string()
+          .uuid()
+          .describe('The message ID to reply to'),
+        body: z.string().describe('Reply body (HTML supported)'),
+        reply_all: z
+          .boolean()
+          .default(false)
+          .describe('Include original CC recipients'),
+        cc_fields: z
+          .array(EmailFieldSchema)
+          .optional()
+          .describe('Additional CC recipients (merged with original if reply_all)'),
+        from_field: EmailFieldSchema.optional().describe(
+          'Override sender (uses default if omitted)'
+        ),
+        attachments: z
+          .array(AttachmentSchema)
+          .max(25)
+          .optional()
+          .describe('File attachments (max 25, total payload max 10MB)'),
+      },
+    },
+    async (params) => {
+      // Fetch the original message
+      const original = await getClient().get<MessageResponse>(
+        `/messages/${params.message_id}`
+      );
+      const msg = original.messages?.[0];
+      if (!msg) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Message not found: ${params.message_id}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      // Build reply fields from original
+      const subject = msg.subject?.startsWith('Re: ')
+        ? msg.subject
+        : `Re: ${msg.subject || '(no subject)'}`;
+
+      const to_fields = msg.from_field ? [msg.from_field] : [];
+
+      // Build CC list
+      let cc_fields = params.cc_fields || [];
+      if (params.reply_all && msg.cc_fields) {
+        cc_fields = [...msg.cc_fields, ...cc_fields];
+      }
+
+      const data = await getClient().post<DraftResponse>('/drafts', {
+        drafts: {
+          to_fields,
+          cc_fields: cc_fields.length > 0 ? cc_fields : undefined,
+          subject,
+          body: params.body,
+          conversation: msg.conversation,
+          from_field: params.from_field,
+          attachments: params.attachments,
+          send: false,
+        },
+      });
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                draft: data.drafts[0],
+                replied_to: {
+                  message_id: msg.id,
+                  original_subject: msg.subject,
+                  original_from: msg.from_field,
+                },
+                message:
+                  'Reply draft created. Use send_message to send it.',
               },
               null,
               2
@@ -255,19 +358,17 @@ For replies, provide the conversation ID. For new messages, omit it.`,
       }
 
       const data = await getClient().post<DraftResponse>('/drafts', {
-        drafts: [
-          {
-            to_fields: params.to_fields,
-            cc_fields: params.cc_fields,
-            bcc_fields: params.bcc_fields,
-            subject: params.subject,
-            body: params.body,
-            conversation: params.conversation,
-            from_field: params.from_field,
-            attachments: params.attachments,
-            send: true,
-          },
-        ],
+        drafts: {
+          to_fields: params.to_fields,
+          cc_fields: params.cc_fields,
+          bcc_fields: params.bcc_fields,
+          subject: params.subject,
+          body: params.body,
+          conversation: params.conversation,
+          from_field: params.from_field,
+          attachments: params.attachments,
+          send: true,
+        },
       });
 
       rateLimiter.recordSend();
