@@ -5,7 +5,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as z from 'zod';
-import { getClient } from '../client.js';
+import type { ClientResolver } from '../types/tools.js';
 import { RateLimitError } from '../errors.js';
 import type { DraftsResponse, DraftResponse, MessageResponse } from '../types/missive.js';
 
@@ -53,7 +53,18 @@ class SendRateLimiter {
   }
 }
 
-const rateLimiter = new SendRateLimiter();
+// Per-user rate limiters
+const rateLimiters = new Map<string, SendRateLimiter>();
+
+function getRateLimiter(extra: { authInfo?: { extra?: Record<string, unknown> } }): SendRateLimiter {
+  const userId = (extra.authInfo?.extra?.userId as string) || 'default';
+  let limiter = rateLimiters.get(userId);
+  if (!limiter) {
+    limiter = new SendRateLimiter();
+    rateLimiters.set(userId, limiter);
+  }
+  return limiter;
+}
 
 // Email field schema
 const EmailFieldSchema = z.object({
@@ -67,7 +78,7 @@ const AttachmentSchema = z.object({
   filename: z.string().describe('Filename with extension'),
 });
 
-export function registerDraftTools(server: McpServer): void {
+export function registerDraftTools(server: McpServer, getClient: ClientResolver): void {
   // list_drafts
   server.registerTool(
     'list_drafts',
@@ -92,8 +103,8 @@ export function registerDraftTools(server: McpServer): void {
           .describe('Cursor for pagination'),
       },
     },
-    async ({ conversation_id, limit, until }) => {
-      const data = await getClient().get<DraftsResponse>(
+    async ({ conversation_id, limit, until }, extra) => {
+      const data = await getClient(extra).get<DraftsResponse>(
         `/conversations/${conversation_id}/drafts`,
         { limit, until }
       );
@@ -160,8 +171,8 @@ For replies, provide the conversation ID and the from/to addresses. For new mess
           .describe('File attachments (max 25, total payload max 10MB)'),
       },
     },
-    async (params) => {
-      const data = await getClient().post<DraftResponse>('/drafts', {
+    async (params, extra) => {
+      const data = await getClient(extra).post<DraftResponse>('/drafts', {
         drafts: {
           to_fields: params.to_fields,
           cc_fields: params.cc_fields,
@@ -230,9 +241,11 @@ Only the body content is required. The draft can be reviewed in Missive or sent 
           .describe('File attachments (max 25, total payload max 10MB)'),
       },
     },
-    async (params) => {
+    async (params, extra) => {
+      const client = getClient(extra);
+
       // Fetch the original message
-      const original = await getClient().get<MessageResponse>(
+      const original = await client.get<MessageResponse>(
         `/messages/${params.message_id}`
       );
       const msg = original.messages?.[0];
@@ -261,7 +274,7 @@ Only the body content is required. The draft can be reviewed in Missive or sent 
         cc_fields = [...msg.cc_fields, ...cc_fields];
       }
 
-      const data = await getClient().post<DraftResponse>('/drafts', {
+      const data = await client.post<DraftResponse>('/drafts', {
         drafts: {
           to_fields,
           cc_fields: cc_fields.length > 0 ? cc_fields : undefined,
@@ -347,8 +360,9 @@ For replies, provide the conversation ID. For new messages, omit it.`,
           .describe('File attachments (max 25, total payload max 10MB)'),
       },
     },
-    async (params) => {
+    async (params, extra) => {
       // Check rate limit
+      const rateLimiter = getRateLimiter(extra);
       if (!rateLimiter.canSend()) {
         const waitTime = rateLimiter.getWaitTime();
         throw new RateLimitError(
@@ -357,7 +371,7 @@ For replies, provide the conversation ID. For new messages, omit it.`,
         );
       }
 
-      const data = await getClient().post<DraftResponse>('/drafts', {
+      const data = await getClient(extra).post<DraftResponse>('/drafts', {
         drafts: {
           to_fields: params.to_fields,
           cc_fields: params.cc_fields,
@@ -403,8 +417,8 @@ For replies, provide the conversation ID. For new messages, omit it.`,
         draft_id: z.string().uuid().describe('The draft ID to delete'),
       },
     },
-    async ({ draft_id }) => {
-      await getClient().delete(`/drafts/${draft_id}`);
+    async ({ draft_id }, extra) => {
+      await getClient(extra).delete(`/drafts/${draft_id}`);
 
       return {
         content: [

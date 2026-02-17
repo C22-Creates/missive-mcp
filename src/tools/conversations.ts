@@ -4,13 +4,13 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as z from 'zod';
-import { getClient } from '../client.js';
+import type { ClientResolver } from '../types/tools.js';
 import type {
   ConversationsResponse,
   ConversationResponse,
 } from '../types/missive.js';
 
-export function registerConversationTools(server: McpServer): void {
+export function registerConversationTools(server: McpServer, getClient: ClientResolver): void {
   // list_conversations
   server.registerTool(
     'list_conversations',
@@ -106,7 +106,7 @@ Note: email and domain are mutually exclusive.`,
           .describe('Cursor for pagination (last_activity_at timestamp)'),
       },
     },
-    async (params) => {
+    async (params, extra) => {
       // Validate mutually exclusive params
       if (params.email && params.domain) {
         return {
@@ -120,7 +120,7 @@ Note: email and domain are mutually exclusive.`,
         };
       }
 
-      const data = await getClient().get<ConversationsResponse>(
+      const data = await getClient(extra).get<ConversationsResponse>(
         '/conversations',
         {
           inbox: params.inbox,
@@ -181,8 +181,8 @@ Note: email and domain are mutually exclusive.`,
           .describe('The conversation ID to retrieve'),
       },
     },
-    async ({ conversation_id }) => {
-      const data = await getClient().get<ConversationResponse>(
+    async ({ conversation_id }, extra) => {
+      const data = await getClient(extra).get<ConversationResponse>(
         `/conversations/${conversation_id}`
       );
 

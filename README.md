@@ -15,20 +15,20 @@ npm install
 npm run build
 ```
 
-## Configuration
+## Modes
+
+The server runs in two modes: **stdio** for local single-user use, and **remote** for hosted multi-user deployments.
+
+### Stdio Mode (Local)
 
 Set the `MISSIVE_API_TOKEN` environment variable:
 
 ```bash
 export MISSIVE_API_TOKEN="your_api_token_here"
+npm start
 ```
 
-To get your API token:
-1. Open Missive
-2. Go to Settings > API
-3. Click "Create a new token"
-
-## Usage with Claude Desktop
+To get your API token: open Missive, go to Settings > API, click "Create a new token".
 
 Add to your Claude Desktop configuration (`claude_desktop_config.json`):
 
@@ -47,6 +47,33 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
 ```
 
 **Important:** Use the full path to `node` (run `which node` to find it). Claude Desktop has a restricted PATH and may not find node otherwise.
+
+### Remote Mode (Hosted)
+
+Runs an HTTP server with OAuth. Each user provides their own Missive PAT through a browser-based authorization flow.
+
+```bash
+export ENCRYPTION_KEY="$(openssl rand -hex 32)"
+export BASE_URL="https://missive-mcp.example.com"
+npm run remote
+```
+
+| Variable | Required | Description |
+|---|---|---|
+| `ENCRYPTION_KEY` | Yes | 32-byte hex string for AES-256-GCM PAT encryption |
+| `BASE_URL` | Yes | Public URL of the server |
+| `PORT` | No | HTTP port (default 3000) |
+| `DATA_DIR` | No | Directory for storage files (default `./data`) |
+
+Point MCP clients at `{BASE_URL}/mcp`. The server handles OAuth automatically:
+
+1. Client discovers endpoints via `/.well-known/oauth-authorization-server`
+2. Client registers dynamically via `/register`
+3. User is redirected to a form to paste their Missive API token
+4. Server validates the token, encrypts and stores it, issues OAuth tokens
+5. Client uses bearer tokens to call `/mcp`
+
+PATs are encrypted at rest with AES-256-GCM. OAuth tokens expire after 1 hour (refresh tokens last 30 days).
 
 ## Tools
 
@@ -131,8 +158,9 @@ Use list_conversations with domain="example.com"
 
 ## Security
 
-- API token is validated on startup
-- Token is never logged or included in error messages
+- API tokens are validated on startup (stdio) or on authorization (remote)
+- Tokens are never logged or included in error messages
+- In remote mode, PATs are encrypted at rest with AES-256-GCM
 - Email body content is never logged
 - Input validation on all tool parameters
 

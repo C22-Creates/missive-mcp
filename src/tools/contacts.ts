@@ -4,7 +4,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as z from 'zod';
-import { getClient } from '../client.js';
+import type { ClientResolver } from '../types/tools.js';
 import type { ContactsResponse, ContactResponse } from '../types/missive.js';
 
 // Contact info schema
@@ -24,7 +24,7 @@ const ContactInfoSchema = z.object({
   label: z.string().optional().describe('Label for this info (e.g., "Work", "Home")'),
 });
 
-export function registerContactTools(server: McpServer): void {
+export function registerContactTools(server: McpServer, getClient: ClientResolver): void {
   // list_contacts
   server.registerTool(
     'list_contacts',
@@ -50,8 +50,8 @@ export function registerContactTools(server: McpServer): void {
         offset: z.number().min(0).default(0).describe('Offset for pagination'),
       },
     },
-    async ({ contact_book, search, limit, offset }) => {
-      const data = await getClient().get<ContactsResponse>('/contacts', {
+    async ({ contact_book, search, limit, offset }, extra) => {
+      const data = await getClient(extra).get<ContactsResponse>('/contacts', {
         contact_book,
         search,
         limit,
@@ -86,8 +86,8 @@ export function registerContactTools(server: McpServer): void {
         contact_id: z.string().uuid().describe('The contact ID to retrieve'),
       },
     },
-    async ({ contact_id }) => {
-      const data = await getClient().get<ContactResponse>(
+    async ({ contact_id }, extra) => {
+      const data = await getClient(extra).get<ContactResponse>(
         `/contacts/${contact_id}`
       );
 
@@ -140,7 +140,7 @@ Use list_contact_books first to get the contact_book ID.`,
           .describe('Contact information (emails, phones, etc.)'),
       },
     },
-    async (params) => {
+    async (params, extra) => {
       // Validate at least one name is provided
       if (!params.first_name && !params.last_name) {
         return {
@@ -154,7 +154,7 @@ Use list_contact_books first to get the contact_book ID.`,
         };
       }
 
-      const data = await getClient().post<ContactResponse>('/contacts', {
+      const data = await getClient(extra).post<ContactResponse>('/contacts', {
         contacts: [
           {
             contact_book: params.contact_book,
@@ -212,8 +212,8 @@ Missing items will be deleted.`,
           ),
       },
     },
-    async ({ contact_id, ...updates }) => {
-      const data = await getClient().patch<ContactResponse>(
+    async ({ contact_id, ...updates }, extra) => {
+      const data = await getClient(extra).patch<ContactResponse>(
         `/contacts/${contact_id}`,
         updates
       );

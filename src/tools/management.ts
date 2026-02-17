@@ -4,10 +4,10 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as z from 'zod';
-import { getClient } from '../client.js';
+import type { ClientResolver } from '../types/tools.js';
 import type { PostResponse } from '../types/missive.js';
 
-export function registerManagementTools(server: McpServer): void {
+export function registerManagementTools(server: McpServer, getClient: ClientResolver): void {
   // create_post
   server.registerTool(
     'create_post',
@@ -79,8 +79,8 @@ Use list_organizations to get org ID, list_users for user IDs, list_shared_label
           .describe('Optional notification to display'),
       },
     },
-    async (params) => {
-      const data = await getClient().post<PostResponse>('/posts', {
+    async (params, extra) => {
+      const data = await getClient(extra).post<PostResponse>('/posts', {
         posts: [
           {
             conversation: params.conversation,

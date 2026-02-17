@@ -5,7 +5,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as z from 'zod';
-import { getClient } from '../client.js';
+import type { ClientResolver } from '../types/tools.js';
 import type {
   OrganizationsResponse,
   TeamsResponse,
@@ -44,7 +44,11 @@ const TTL_1_HOUR = 60 * 60 * 1000;
 const TTL_15_MIN = 15 * 60 * 1000;
 const TTL_5_MIN = 5 * 60 * 1000;
 
-export function registerReferenceTools(server: McpServer): void {
+function userPrefix(extra: { authInfo?: { extra?: Record<string, unknown> } }): string {
+  return (extra.authInfo?.extra?.userId as string) || 'default';
+}
+
+export function registerReferenceTools(server: McpServer, getClient: ClientResolver): void {
   // list_organizations
   server.registerTool(
     'list_organizations',
@@ -54,12 +58,13 @@ export function registerReferenceTools(server: McpServer): void {
         'Lists all organizations the authenticated user belongs to. Organizations are the top-level entity in Missive.',
       inputSchema: {},
     },
-    async () => {
-      const cacheKey = 'organizations';
+    async (_params, extra) => {
+      const prefix = userPrefix(extra);
+      const cacheKey = `${prefix}:organizations`;
       let data = cache.get<OrganizationsResponse>(cacheKey);
 
       if (!data) {
-        data = await getClient().get<OrganizationsResponse>('/organizations');
+        data = await getClient(extra).get<OrganizationsResponse>('/organizations');
         cache.set(cacheKey, data, TTL_1_HOUR);
       }
 
@@ -96,12 +101,13 @@ export function registerReferenceTools(server: McpServer): void {
         offset: z.number().min(0).default(0).describe('Offset for pagination'),
       },
     },
-    async ({ organization, limit, offset }) => {
-      const cacheKey = `teams:${organization ?? 'all'}:${limit}:${offset}`;
+    async ({ organization, limit, offset }, extra) => {
+      const prefix = userPrefix(extra);
+      const cacheKey = `${prefix}:teams:${organization ?? 'all'}:${limit}:${offset}`;
       let data = cache.get<TeamsResponse>(cacheKey);
 
       if (!data) {
-        data = await getClient().get<TeamsResponse>('/teams', {
+        data = await getClient(extra).get<TeamsResponse>('/teams', {
           organization,
           limit,
           offset,
@@ -142,12 +148,13 @@ export function registerReferenceTools(server: McpServer): void {
         offset: z.number().min(0).default(0).describe('Offset for pagination'),
       },
     },
-    async ({ organization, limit, offset }) => {
-      const cacheKey = `users:${organization ?? 'all'}:${limit}:${offset}`;
+    async ({ organization, limit, offset }, extra) => {
+      const prefix = userPrefix(extra);
+      const cacheKey = `${prefix}:users:${organization ?? 'all'}:${limit}:${offset}`;
       let data = cache.get<UsersResponse>(cacheKey);
 
       if (!data) {
-        data = await getClient().get<UsersResponse>('/users', {
+        data = await getClient(extra).get<UsersResponse>('/users', {
           organization,
           limit,
           offset,
@@ -183,12 +190,13 @@ export function registerReferenceTools(server: McpServer): void {
         offset: z.number().min(0).default(0).describe('Offset for pagination'),
       },
     },
-    async ({ limit, offset }) => {
-      const cacheKey = `contact_books:${limit}:${offset}`;
+    async ({ limit, offset }, extra) => {
+      const prefix = userPrefix(extra);
+      const cacheKey = `${prefix}:contact_books:${limit}:${offset}`;
       let data = cache.get<ContactBooksResponse>(cacheKey);
 
       if (!data) {
-        data = await getClient().get<ContactBooksResponse>('/contact_books', {
+        data = await getClient(extra).get<ContactBooksResponse>('/contact_books', {
           limit,
           offset,
         });
@@ -228,12 +236,13 @@ export function registerReferenceTools(server: McpServer): void {
         offset: z.number().min(0).default(0).describe('Offset for pagination'),
       },
     },
-    async ({ organization, limit, offset }) => {
-      const cacheKey = `shared_labels:${organization ?? 'all'}:${limit}:${offset}`;
+    async ({ organization, limit, offset }, extra) => {
+      const prefix = userPrefix(extra);
+      const cacheKey = `${prefix}:shared_labels:${organization ?? 'all'}:${limit}:${offset}`;
       let data = cache.get<SharedLabelsResponse>(cacheKey);
 
       if (!data) {
-        data = await getClient().get<SharedLabelsResponse>('/shared_labels', {
+        data = await getClient(extra).get<SharedLabelsResponse>('/shared_labels', {
           organization,
           limit,
           offset,

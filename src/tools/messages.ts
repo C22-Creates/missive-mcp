@@ -4,7 +4,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as z from 'zod';
-import { getClient } from '../client.js';
+import type { ClientResolver } from '../types/tools.js';
 import type {
   MessageResponse,
   TimelineItem,
@@ -65,75 +65,11 @@ function processBody(
   return processed;
 }
 
-export function registerMessageTools(server: McpServer): void {
-  // ============================================================
-  // DEAD CODE: list_messages replaced by get_conversation_timeline
-  // ============================================================
-  /*
-  // list_messages
-  server.registerTool(
-    'list_messages',
-    {
-      title: 'List Messages',
-      description:
-        'Lists messages in a conversation. Returns messages ordered from newest to oldest. Use limit and until for pagination.',
-      inputSchema: {
-        conversation_id: z
-          .string()
-          .uuid()
-          .describe('The conversation ID to get messages from'),
-        limit: z
-          .number()
-          .min(1)
-          .max(50)
-          .default(10)
-          .describe('Maximum messages to return (max 50)'),
-        until: z
-          .string()
-          .optional()
-          .describe('Cursor for pagination (message delivered_at timestamp)'),
-      },
-    },
-    async ({ conversation_id, limit, until }) => {
-      const data = await getClient().get<MessagesResponse>(
-        `/conversations/${conversation_id}/messages`,
-        { limit, until }
-      );
+function userPrefix(extra: { authInfo?: { extra?: Record<string, unknown> } }): string {
+  return (extra.authInfo?.extra?.userId as string) || 'default';
+}
 
-      const result = {
-        messages: data.messages.map((m) => ({
-          id: m.id,
-          subject: m.subject,
-          preview: m.preview,
-          from_field: m.from_field,
-          to_fields: m.to_fields,
-          delivered_at: m.delivered_at,
-          attachments: m.attachments?.map((a) => ({
-            id: a.id,
-            filename: a.filename,
-            size: a.size,
-            content_type: a.content_type,
-          })),
-        })),
-        has_more: data.messages.length === limit,
-        next_cursor:
-          data.messages.length > 0
-            ? String(data.messages[data.messages.length - 1].delivered_at)
-            : undefined,
-      };
-
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    }
-  );
-  */
-
+export function registerMessageTools(server: McpServer, getClient: ClientResolver): void {
   // get_message
   server.registerTool(
     'get_message',
@@ -165,8 +101,8 @@ Use strip_html=true (default) to convert HTML to plain text.`,
           .describe('Maximum body length for truncated format'),
       },
     },
-    async ({ message_id, body_format, strip_html, max_body_length }) => {
-      const data = await getClient().get<MessageResponse>(
+    async ({ message_id, body_format, strip_html, max_body_length }, extra) => {
+      const data = await getClient(extra).get<MessageResponse>(
         `/messages/${message_id}`
       );
 
@@ -272,8 +208,11 @@ Use get_message with a specific message ID if you need the full body content.`,
       body_format,
       strip_html,
       max_body_length,
-    }) => {
-      const cache = getCache(conversation_id);
+    }, extra) => {
+      const prefix = userPrefix(extra);
+      const cacheKey = `${prefix}:${conversation_id}`;
+      const cache = getCache(cacheKey);
+      const client = getClient(extra);
 
       let fetchedMessages = 0;
       let fetchedPosts = 0;
@@ -288,7 +227,7 @@ Use get_message with a specific message ID if you need the full body content.`,
           const params: { limit: number; until?: string } = { limit: 10 };
           if (cursor) params.until = cursor;
 
-          const response = await getClient().get<{ messages: Message[] }>(
+          const response = await client.get<{ messages: Message[] }>(
             `/conversations/${conversation_id}/messages`,
             params
           );
@@ -320,7 +259,7 @@ Use get_message with a specific message ID if you need the full body content.`,
           const params: { limit: number; until?: string } = { limit: 10 };
           if (cursor) params.until = cursor;
 
-          const response = await getClient().get<{ posts: Post[] }>(
+          const response = await client.get<{ posts: Post[] }>(
             `/conversations/${conversation_id}/posts`,
             params
           );
@@ -348,7 +287,7 @@ Use get_message with a specific message ID if you need the full body content.`,
           const params: { limit: number; until?: string } = { limit: 10 };
           if (cursor) params.until = cursor;
 
-          const response = await getClient().get<{ comments: Comment[] }>(
+          const response = await client.get<{ comments: Comment[] }>(
             `/conversations/${conversation_id}/comments`,
             params
           );
@@ -484,7 +423,7 @@ Use get_message with a specific message ID if you need the full body content.`,
       const oldestTimestamp =
         finalTimeline.length > 0 ? finalTimeline[0].timestamp : null;
 
-      const stats = getCacheStats(conversation_id);
+      const stats = getCacheStats(cacheKey);
 
       return {
         content: [
@@ -513,153 +452,4 @@ Use get_message with a specific message ID if you need the full body content.`,
       };
     }
   );
-
-  // ============================================================
-  // DEAD CODE: Granular list tools replaced by get_conversation_timeline
-  // Kept for reference in case granular access is needed later
-  // ============================================================
-
-  /*
-  // list_posts
-  server.registerTool(
-    'list_posts',
-    {
-      title: 'List Posts',
-      description: `Lists posts in a conversation. Posts are internal notes and state changes (close, assign, label) made by team members.
-
-IMPORTANT: Always check posts in addition to messages - team comments and activity won't appear in messages.
-
-Posts include:
-- Internal notes/comments from team members
-- State change notifications (closed, assigned, labeled)
-- Integration notifications
-
-Returns posts ordered from newest to oldest.`,
-      inputSchema: {
-        conversation_id: z
-          .string()
-          .uuid()
-          .describe('The conversation ID to get posts from'),
-        limit: z
-          .number()
-          .min(1)
-          .max(50)
-          .default(10)
-          .describe('Maximum posts to return'),
-        until: z
-          .string()
-          .optional()
-          .describe('Cursor for pagination (post created_at timestamp)'),
-      },
-    },
-    async ({ conversation_id, limit, until }) => {
-      const data = await getClient().get<PostsResponse>(
-        `/conversations/${conversation_id}/posts`,
-        { limit, until }
-      );
-
-      const result = {
-        posts: data.posts.map((p) => ({
-          id: p.id,
-          text: p.text,
-          author: p.author,
-          created_at: p.created_at,
-          notification: p.notification,
-          attachments: p.attachments?.map((a) => ({
-            id: a.id,
-            filename: a.filename,
-            size: a.size,
-            content_type: a.content_type,
-          })),
-        })),
-        has_more: data.posts.length === limit,
-        next_cursor:
-          data.posts.length > 0
-            ? String(data.posts[data.posts.length - 1].created_at)
-            : undefined,
-      };
-
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    }
-  );
-
-  // list_comments
-  server.registerTool(
-    'list_comments',
-    {
-      title: 'List Comments',
-      description: `Lists comments in a conversation. Comments are team discussions that appear in the sidebar.
-
-IMPORTANT: Always check comments in addition to messages - team discussions won't appear in messages.
-
-Comments may include:
-- Team member discussions
-- @mentions of other users
-- Attached files
-- Associated tasks
-
-Returns comments ordered from newest to oldest.`,
-      inputSchema: {
-        conversation_id: z
-          .string()
-          .uuid()
-          .describe('The conversation ID to get comments from'),
-        limit: z
-          .number()
-          .min(1)
-          .max(50)
-          .default(10)
-          .describe('Maximum comments to return'),
-        until: z
-          .string()
-          .optional()
-          .describe('Cursor for pagination (comment created_at timestamp)'),
-      },
-    },
-    async ({ conversation_id, limit, until }) => {
-      const data = await getClient().get<CommentsResponse>(
-        `/conversations/${conversation_id}/comments`,
-        { limit, until }
-      );
-
-      const result = {
-        comments: data.comments.map((c) => ({
-          id: c.id,
-          body: c.body,
-          author: c.author,
-          created_at: c.created_at,
-          mentions: c.mentions,
-          task: c.task,
-          attachments: c.attachments?.map((a) => ({
-            id: a.id,
-            filename: a.filename,
-            size: a.size,
-            content_type: a.content_type,
-          })),
-        })),
-        has_more: data.comments.length === limit,
-        next_cursor:
-          data.comments.length > 0
-            ? String(data.comments[data.comments.length - 1].created_at)
-            : undefined,
-      };
-
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    }
-  );
-  */
 }

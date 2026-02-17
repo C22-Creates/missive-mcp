@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * Missive MCP Server
+ * Missive MCP Server — stdio entry point
  *
- * An MCP server that interfaces with the Missive API for email management.
+ * Reads MISSIVE_API_TOKEN from env for single-user local mode.
  */
 
 import { readFileSync } from 'fs';
@@ -46,13 +46,16 @@ async function main() {
     { instructions }
   );
 
+  // In stdio mode, always return the singleton client
+  const resolveClient = () => getClient();
+
   // Register all tools
-  registerReferenceTools(server);
-  registerConversationTools(server);
-  registerMessageTools(server);
-  registerDraftTools(server);
-  registerContactTools(server);
-  registerManagementTools(server);
+  registerReferenceTools(server, resolveClient);
+  registerConversationTools(server, resolveClient);
+  registerMessageTools(server, resolveClient);
+  registerDraftTools(server, resolveClient);
+  registerContactTools(server, resolveClient);
+  registerManagementTools(server, resolveClient);
 
   // Connect via stdio
   const transport = new StdioServerTransport();

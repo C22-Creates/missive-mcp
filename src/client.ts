@@ -21,20 +21,16 @@ interface RequestOptions {
 export class MissiveClient {
   private readonly token: string;
 
-  constructor(token?: string) {
-    const resolvedToken = token ?? process.env.MISSIVE_API_TOKEN;
-
-    if (!resolvedToken) {
-      throw new Error(
-        'MISSIVE_API_TOKEN environment variable is required'
-      );
+  constructor(token: string) {
+    if (!token) {
+      throw new Error('API token is required');
     }
 
-    if (resolvedToken.length < 20) {
-      throw new Error('MISSIVE_API_TOKEN appears to be invalid (too short)');
+    if (token.length < 20) {
+      throw new Error('API token appears to be invalid (too short)');
     }
 
-    this.token = resolvedToken;
+    this.token = token;
   }
 
   private async request<T>(
@@ -172,12 +168,33 @@ export class MissiveClient {
   }
 }
 
-// Singleton instance
-let clientInstance: MissiveClient | null = null;
+// Per-token client cache using WeakRef for GC-friendly caching
+const clientCache = new Map<string, WeakRef<MissiveClient>>();
+const registry = new FinalizationRegistry<string>((token) => {
+  clientCache.delete(token);
+});
+
+export function getClientForToken(token: string): MissiveClient {
+  const ref = clientCache.get(token);
+  const existing = ref?.deref();
+  if (existing) return existing;
+
+  const client = new MissiveClient(token);
+  clientCache.set(token, new WeakRef(client));
+  registry.register(client, token);
+  return client;
+}
+
+// Singleton for stdio mode (backward compat)
+let stdioClient: MissiveClient | null = null;
 
 export function getClient(): MissiveClient {
-  if (!clientInstance) {
-    clientInstance = new MissiveClient();
+  if (!stdioClient) {
+    const token = process.env.MISSIVE_API_TOKEN;
+    if (!token) {
+      throw new Error('MISSIVE_API_TOKEN environment variable is required');
+    }
+    stdioClient = new MissiveClient(token);
   }
-  return clientInstance;
+  return stdioClient;
 }
