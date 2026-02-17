@@ -71,10 +71,8 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
 
 | Tool | Description |
 |------|-------------|
-| `list_messages` | List messages in a conversation |
+| `get_conversation_timeline` | Get all messages, posts, and comments as a unified chronological timeline |
 | `get_message` | Get full message content (with body truncation options) |
-| `list_posts` | List posts (internal notes and state changes) in a conversation |
-| `list_comments` | List comments (team discussions) in a conversation |
 
 ### Drafts
 
@@ -110,7 +108,7 @@ Use list_conversations with inbox=true to see recent conversations.
 ### Reply to an email
 ```
 1. Use list_conversations to find the conversation
-2. Use list_messages to see the thread
+2. Use get_conversation_timeline to see the full thread (messages + team activity)
 3. Use send_message with the conversation ID to reply
 ```
 

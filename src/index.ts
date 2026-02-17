@@ -6,9 +6,14 @@
  * An MCP server that interfaces with the Missive API for email management.
  */
 
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { getClient } from './client.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 import { registerReferenceTools } from './tools/reference.js';
 import { registerConversationTools } from './tools/conversations.js';
 import { registerMessageTools } from './tools/messages.js';
@@ -28,10 +33,18 @@ async function main() {
     process.exit(1);
   }
 
-  const server = new McpServer({
-    name: 'missive-mcp',
-    version: '1.0.0',
-  });
+  const instructions = readFileSync(
+    join(__dirname, '..', 'instructions.md'),
+    'utf-8'
+  );
+
+  const server = new McpServer(
+    {
+      name: 'missive-mcp',
+      version: '1.0.0',
+    },
+    { instructions }
+  );
 
   // Register all tools
   registerReferenceTools(server);

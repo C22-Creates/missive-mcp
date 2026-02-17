@@ -209,3 +209,9 @@ export interface Comment {
 export interface CommentsResponse {
   comments: Comment[];
 }
+
+// Timeline item - discriminated union for unified conversation view
+export type TimelineItem =
+  | { type: 'message'; data: Message; timestamp: number }
+  | { type: 'post'; data: Post; timestamp: number }
+  | { type: 'comment'; data: Comment; timestamp: number };
