@@ -203,8 +203,16 @@ app.delete('/mcp', bearerAuth, async (_req, res) => {
 
 // --- Start ---
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Missive MCP server listening on port ${PORT}`);
   console.log(`Base URL: ${BASE_URL}`);
   console.log(`OAuth metadata: ${BASE_URL}/.well-known/oauth-authorization-server`);
 });
+
+function shutdown() {
+  console.log('Shutting down...');
+  server.close(() => process.exit(0));
+}
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
