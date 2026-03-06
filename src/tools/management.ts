@@ -81,20 +81,18 @@ Use list_organizations to get org ID, list_users for user IDs, list_shared_label
     },
     async (params, extra) => {
       const data = await getClient(extra).post<PostResponse>('/posts', {
-        posts: [
-          {
-            conversation: params.conversation,
-            organization: params.organization,
-            close: params.close,
-            add_shared_labels: params.add_shared_labels,
-            remove_shared_labels: params.remove_shared_labels,
-            add_assignees: params.add_assignees,
-            team: params.team,
-            force_team: params.force_team,
-            text: params.text,
-            notification: params.notification,
-          },
-        ],
+        posts: {
+          conversation: params.conversation,
+          organization: params.organization,
+          close: params.close,
+          add_shared_labels: params.add_shared_labels,
+          remove_shared_labels: params.remove_shared_labels,
+          add_assignees: params.add_assignees,
+          team: params.team,
+          force_team: params.force_team,
+          text: params.text,
+          notification: params.notification,
+        },
       });
 
       const actions: string[] = [];
