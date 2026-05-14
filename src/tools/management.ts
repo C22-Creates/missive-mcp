@@ -6,6 +6,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as z from 'zod';
 import type { ClientResolver } from '../types/tools.js';
 import type { PostResponse } from '../types/missive.js';
+import { validateIds } from '../validators.js';
 
 export function registerManagementTools(server: McpServer, getClient: ClientResolver): void {
   // create_post
@@ -80,6 +81,18 @@ Use list_organizations to get org ID, list_users for user IDs, list_shared_label
       },
     },
     async (params, extra) => {
+      // Validate every UUID against the authenticated token's actual resources
+      // BEFORE hitting Missive. The Missive API silently accepts unknown IDs
+      // (e.g., from a defunct organization) and the resulting post destroys
+      // the underlying conversation. See validators.ts for the failure mode.
+      await validateIds(extra, getClient, {
+        organization: params.organization,
+        team: params.team,
+        add_assignees: params.add_assignees,
+        add_shared_labels: params.add_shared_labels,
+        remove_shared_labels: params.remove_shared_labels,
+      });
+
       const data = await getClient(extra).post<PostResponse>('/posts', {
         posts: {
           conversation: params.conversation,
