@@ -186,14 +186,25 @@ For replies, provide the conversation ID and the from/to addresses. For new mess
         },
       });
 
+      const draft = data.drafts;
+
       return {
         content: [
           {
             type: 'text' as const,
             text: JSON.stringify(
               {
-                draft: data.drafts[0],
-                message: 'Draft created successfully. Use send_message to send it.',
+                draft_id: draft?.id,
+                conversation_id: draft?.conversation,
+                web_url: draft?.conversation
+                  ? `https://mail.missiveapp.com/#inbox/conversations/${draft.conversation}/drafts/${draft.id}`
+                  : undefined,
+                app_url: draft?.conversation
+                  ? `missive://mail.missiveapp.com/#inbox/conversations/${draft.conversation}/drafts/${draft.id}`
+                  : undefined,
+                draft,
+                message:
+                  'Draft created successfully. The Missive API auto-archives drafts on creation — to make the draft visible, follow up with create_post including add_assignees so the conversation un-archives.',
               },
               null,
               2
@@ -287,20 +298,30 @@ Only the body content is required. The draft can be reviewed in Missive or sent 
         },
       });
 
+      const draft = data.drafts;
+
       return {
         content: [
           {
             type: 'text' as const,
             text: JSON.stringify(
               {
-                draft: data.drafts[0],
+                draft_id: draft?.id,
+                conversation_id: draft?.conversation,
+                web_url: draft?.conversation
+                  ? `https://mail.missiveapp.com/#inbox/conversations/${draft.conversation}/drafts/${draft.id}`
+                  : undefined,
+                app_url: draft?.conversation
+                  ? `missive://mail.missiveapp.com/#inbox/conversations/${draft.conversation}/drafts/${draft.id}`
+                  : undefined,
+                draft,
                 replied_to: {
                   message_id: msg.id,
                   original_subject: msg.subject,
                   original_from: msg.from_field,
                 },
                 message:
-                  'Reply draft created. Use send_message to send it.',
+                  'Reply draft created. The Missive API auto-archives drafts on creation — follow up with create_post including add_assignees to make it visible.',
               },
               null,
               2
@@ -387,6 +408,8 @@ For replies, provide the conversation ID. For new messages, omit it.`,
 
       rateLimiter.recordSend();
 
+      const sentDraft = data.drafts;
+
       return {
         content: [
           {
@@ -394,7 +417,9 @@ For replies, provide the conversation ID. For new messages, omit it.`,
             text: JSON.stringify(
               {
                 sent: true,
-                draft: data.drafts[0],
+                message_id: sentDraft?.id,
+                conversation_id: sentDraft?.conversation,
+                draft: sentDraft,
                 message: 'Email sent successfully.',
               },
               null,

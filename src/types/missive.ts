@@ -139,8 +139,15 @@ export interface DraftsResponse extends PaginatedResponse<Draft> {
   drafts: Draft[];
 }
 
+/**
+ * Response from POST /v1/drafts.
+ * The API returns the created draft as a singular object under the `drafts` key
+ * (NOT an array, despite the plural key name). The previous typing as `Draft[]`
+ * caused `data.drafts[0]` to silently evaluate to `undefined`, which is why the
+ * MCP `create_draft` tool used to return only `{message}` with no IDs.
+ */
 export interface DraftResponse {
-  drafts: Draft[];
+  drafts: Draft;
 }
 
 // Contact
